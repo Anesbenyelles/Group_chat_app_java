@@ -2,66 +2,71 @@ package groupchat;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Scanner;
+import java.util.function.Consumer;
 
 public class Client {
     private final BufferedReader bufferedReader;
     private final BufferedWriter bufferedWriter;
     private final Socket socket;
     private final String username;
+    private Consumer<String> messageConsumer;
 
-    // Constructor initializes the client with the server socket and username
-    public Client(Socket socket, String username) {
+    public Client(Socket socket, String username) throws IOException {
         this.socket = socket;
         this.username = username;
-        try {
-            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-        } catch (IOException e) {
-            closeEverything(); // Close connection on error
-            throw new RuntimeException(e);
-        }
+        this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        bufferedWriter.write(username);
+        bufferedWriter.newLine();
+        bufferedWriter.flush();
     }
 
-    // Method to send messages to the server
-    public void sendMessage() {
+    public void sendMessage(String message) {
         try {
-            // Send the username as the first message to the server
-            bufferedWriter.write(username);
+            bufferedWriter.write(username + ": " + message);
             bufferedWriter.newLine();
             bufferedWriter.flush();
-
-            Scanner scanner = new Scanner(System.in);
-            while (socket.isConnected()) {
-                // Read message from the console and send to the server
-                String message = scanner.nextLine();
-                bufferedWriter.write(username + ": " + message);
-                bufferedWriter.newLine();
-                bufferedWriter.flush();
-            }
         } catch (IOException e) {
-            closeEverything(); // Close connection on error
+            closeEverything();
         }
     }
 
-    // Method to receive messages from the server
-    public void receiveMessages() {
+    public void sendFile(File file) throws IOException {
+        bufferedWriter.write("SEND_FILE");
+        bufferedWriter.newLine();
+        bufferedWriter.write(file.getName());
+        bufferedWriter.newLine();
+        bufferedWriter.write(String.valueOf(file.length()));
+        bufferedWriter.newLine();
+        bufferedWriter.flush();
+
+        try (FileInputStream fis = new FileInputStream(file);
+             OutputStream os = socket.getOutputStream()) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+        }
+    }
+
+    public void receiveMessages(Consumer<String> messageConsumer) {
+        this.messageConsumer = messageConsumer;
         new Thread(() -> {
             String messageFromGroupChat;
-            while (socket.isConnected()) {
-                try {
-                    // Read message from the server and print to the console
-                    messageFromGroupChat = bufferedReader.readLine();
-                    System.out.println(messageFromGroupChat);
-                } catch (IOException e) {
-                    closeEverything(); // Close connection on error
-                    break;
+            try {
+                while (socket.isConnected() && (messageFromGroupChat = bufferedReader.readLine()) != null) {
+                    if (messageConsumer != null) {
+                        messageConsumer.accept(messageFromGroupChat);
+                    }
                 }
+            } catch (IOException e) {
+                closeEverything();
             }
         }).start();
     }
 
-    // Method to close all resources (socket, reader, writer)
     public void closeEverything() {
         try {
             if (bufferedReader != null) {
@@ -73,20 +78,6 @@ public class Client {
             if (socket != null) {
                 socket.close();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Enter your username:");
-        String username = scanner.nextLine();
-
-        try (Socket socket = new Socket("localhost", 9806)) {
-            Client client = new Client(socket, username);
-            client.receiveMessages(); // Start receiving messages from the server
-            client.sendMessage(); // Start sending messages to the server
         } catch (IOException e) {
             e.printStackTrace();
         }

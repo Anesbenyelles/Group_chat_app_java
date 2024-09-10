@@ -79,7 +79,7 @@ public class ClientHandler implements Runnable {
         FileChooser fileChooser = new FileChooser();
         File selectedFile = fileChooser.showOpenDialog(null);
         if (selectedFile != null) {
-            try (Socket socket = new Socket("server-ip", port);
+            try (Socket socket = new Socket("server-ip", 9806);
                  FileInputStream fis = new FileInputStream(selectedFile);
                  OutputStream os = socket.getOutputStream()) {
 
