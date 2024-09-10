@@ -42,7 +42,30 @@ public class DatabaseConnection {
             e.printStackTrace();
         }
     }
-
+    public void entrelog(String username) {
+    	
+    	String query = "INSERT INTO logs (username, action,timestamp) VALUES (?, ?,CURRENT_TIMESTAMP)";
+        try (PreparedStatement stmt = this.connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            stmt.setString(2, "loged in");
+            stmt.executeUpdate();
+            System.out.println("logs added successfully.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+ public void exitelog(String username) {
+    	
+    	String query = "INSERT INTO logs (username, action,timestamp) VALUES (?, ?,CURRENT_TIMESTAMP)";
+        try (PreparedStatement stmt = this.connection.prepareStatement(query)) {
+            stmt.setString(1, username);
+            stmt.setString(2, "loged out");
+            stmt.executeUpdate();
+            System.out.println("logs added successfully.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
     public void editClient(String oldUsername, String newUsername) {
         String query = "UPDATE users SET username = ? WHERE username = ?";
         try (PreparedStatement stmt = this.connection.prepareStatement(query)) {

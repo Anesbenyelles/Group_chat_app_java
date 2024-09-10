@@ -27,6 +27,7 @@ public class ClientHandler implements Runnable {
         
         // Broadcast that a new user has joined the chat
         broadcastMessage("SERVER: " + username + " has joined the chat!");
+       
     }
 
     @Override
