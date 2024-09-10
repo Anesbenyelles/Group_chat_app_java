@@ -5,97 +5,74 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.stage.FileChooser;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.OutputStream;
-import java.net.Socket;
 
 public class ClientHandler implements Runnable {
-    // List to keep track of all connected clients
     private static final List<ClientHandler> clientHandlers = new ArrayList<>();
     private final Socket socket;
     private final BufferedReader bufferedReader;
     private final BufferedWriter bufferedWriter;
     private final String username;
 
-    // Constructor initializes the client handler with the connected socket
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
         this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        
-        // The first message from the client is considered as the username
         this.username = bufferedReader.readLine();
-        
-        // Add the new client handler to the list of connected clients
         clientHandlers.add(this);
-        
-        // Broadcast that a new user has joined the chat
         broadcastMessage("SERVER: " + username + " has joined the chat!");
-       
     }
 
     @Override
     public void run() {
         String messageClient;
-
-        // Continuously listen for messages from the client
         try {
             while (socket.isConnected()) {
-                messageClient = bufferedReader.readLine(); // Read the message from the client
-                
-                // Broadcast the message to all connected clients
-                broadcastMessage(messageClient);
+                messageClient = bufferedReader.readLine();
+                if (messageClient.startsWith("/file")) {
+                    receiveFile(messageClient); // Handle file transfer request
+                } else {
+                    broadcastMessage(messageClient);
+                }
             }
         } catch (IOException e) {
-            // Close the connection if an error occurs
             closeEverything();
         }
     }
 
-    // Method to broadcast a message to all clients except the sender
     public void broadcastMessage(String message) {
         for (ClientHandler clientHandler : clientHandlers) {
             try {
-                if (!clientHandler.username.equals(this.username)) { // Avoid sending the message to the sender
+                if (!clientHandler.username.equals(this.username)) {
                     clientHandler.bufferedWriter.write(message);
                     clientHandler.bufferedWriter.newLine();
                     clientHandler.bufferedWriter.flush();
                 }
             } catch (IOException e) {
-                closeEverything(); // Close connection on error
+                closeEverything();
             }
         }
     }
 
-    // Method to remove the client handler from the list and notify others
     public void removeClientHandler() {
         clientHandlers.remove(this);
         broadcastMessage("SERVER: " + username + " has left the chat.");
     }
-   
 
-    private void sendFile() {
-        FileChooser fileChooser = new FileChooser();
-        File selectedFile = fileChooser.showOpenDialog(null);
-        if (selectedFile != null) {
-            try (Socket socket = new Socket("server-ip", 9806);
-                 FileInputStream fis = new FileInputStream(selectedFile);
-                 OutputStream os = socket.getOutputStream()) {
+    private void sendFile(File file) {
+        try (FileInputStream fis = new FileInputStream(file);
+             OutputStream os = socket.getOutputStream()) {
 
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = fis.read(buffer)) != -1) {
-                    os.write(buffer, 0, bytesRead);
-                }
-                System.out.println("File sent successfully!");
-
-            } catch (Exception e) {
-                e.printStackTrace();
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
             }
+            System.out.println("File sent successfully!");
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
- // In your server's ClientHandler class
 
     private void receiveFile(String fileName) {
         try {
@@ -116,9 +93,6 @@ public class ClientHandler implements Runnable {
         }
     }
 
-
-
-    // Method to close all resources (socket, reader, writer)
     public void closeEverything() {
         removeClientHandler();
         try {
