@@ -4,6 +4,11 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import javafx.stage.FileChooser;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.OutputStream;
+import java.net.Socket;
 
 public class ClientHandler implements Runnable {
     // List to keep track of all connected clients
@@ -68,6 +73,50 @@ public class ClientHandler implements Runnable {
         clientHandlers.remove(this);
         broadcastMessage("SERVER: " + username + " has left the chat.");
     }
+   
+
+    private void sendFile() {
+        FileChooser fileChooser = new FileChooser();
+        File selectedFile = fileChooser.showOpenDialog(null);
+        if (selectedFile != null) {
+            try (Socket socket = new Socket("server-ip", port);
+                 FileInputStream fis = new FileInputStream(selectedFile);
+                 OutputStream os = socket.getOutputStream()) {
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = fis.read(buffer)) != -1) {
+                    os.write(buffer, 0, bytesRead);
+                }
+                System.out.println("File sent successfully!");
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+ // In your server's ClientHandler class
+
+    private void receiveFile(String fileName) {
+        try {
+            File file = new File("server-directory/" + fileName);
+            try (FileOutputStream fos = new FileOutputStream(file);
+                 InputStream is = socket.getInputStream()) {
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = is.read(buffer)) != -1) {
+                    fos.write(buffer, 0, bytesRead);
+                }
+                System.out.println("File " + fileName + " received successfully!");
+
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
     // Method to close all resources (socket, reader, writer)
     public void closeEverything() {
