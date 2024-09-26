@@ -3,10 +3,11 @@ package groupchat;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.Connection;
 
 public class Server {
     private final ServerSocket serverSocket;
-
+    private Connection connection;
     // Constructor initializes the server socket
     public Server(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
@@ -20,7 +21,7 @@ public class Server {
                 // Accept a new client connection
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected!");
-
+   
                 // Create a new ClientHandler for the connected client
                 ClientHandler clientHandler = new ClientHandler(clientSocket);
 

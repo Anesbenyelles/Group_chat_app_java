@@ -6,16 +6,20 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
+import java.util.function.Consumer;
 
 public class Chatapp extends Application {
-    private Client client;
+    private BufferedReader bufferedReader;
+    private BufferedWriter bufferedWriter;
+    private Socket socket;
+    private String username;
     private TextArea chatArea;
     private TextField messageField;
 
@@ -51,7 +55,7 @@ public class Chatapp extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
 
-        // Initialize client
+        // Initialize the client and socket connection
         initializeClient();
 
         // Add action listeners
@@ -62,9 +66,16 @@ public class Chatapp extends Application {
 
     private void initializeClient() {
         try {
-            Socket socket = new Socket("localhost", 9806); // Connect to the server
-            client = new Client(socket, "User"); // Replace "User" with a username prompt or input
-            client.receiveMessages(this::updateChatArea); // Update chat area with received messages
+            socket = new Socket("localhost", 9806); // Connect to the server
+            username = "User"; // Replace with user input for username
+            bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+
+            bufferedWriter.write(username);
+            bufferedWriter.newLine();
+            bufferedWriter.flush();
+
+            receiveMessages(this::updateChatArea); // Update chat area with received messages
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -72,18 +83,40 @@ public class Chatapp extends Application {
 
     private void sendMessage() {
         String message = messageField.getText();
-        if (!message.isEmpty() && client != null) {
-            client.sendMessage(message);
-            messageField.clear();
+        if (!message.isEmpty()) {
+            try {
+                bufferedWriter.write(username + ": " + message);
+                bufferedWriter.newLine();
+                bufferedWriter.flush();
+                messageField.clear();
+            } catch (IOException e) {
+                closeEverything();
+            }
         }
     }
 
     private void sendFile() {
         FileChooser fileChooser = new FileChooser();
         File file = fileChooser.showOpenDialog(null);
-        if (file != null && client != null) {
+        if (file != null) {
             try {
-                client.sendFile(file); // Implement this method in Client class
+                bufferedWriter.write("SEND_FILE");
+                bufferedWriter.newLine();
+                bufferedWriter.write(file.getName());
+                bufferedWriter.newLine();
+                bufferedWriter.write(String.valueOf(file.length()));
+                bufferedWriter.newLine();
+                bufferedWriter.flush();
+
+                try (FileInputStream fis = new FileInputStream(file);
+                     OutputStream os = socket.getOutputStream()) {
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = fis.read(buffer)) != -1) {
+                        os.write(buffer, 0, bytesRead);
+                    }
+                }
+
                 chatArea.appendText("You sent file: " + file.getName() + "\n");
             } catch (IOException e) {
                 e.printStackTrace();
@@ -92,12 +125,41 @@ public class Chatapp extends Application {
     }
 
     private void sendPhoto() {
-        // Similar implementation as sendFile, but may involve image-specific handling
+        // Implementation for sending a photo can go here
         System.out.println("Photo sending not implemented yet.");
+    }
+
+    private void receiveMessages(Consumer<String> messageConsumer) {
+        new Thread(() -> {
+            String messageFromGroupChat;
+            try {
+                while (socket.isConnected() && (messageFromGroupChat = bufferedReader.readLine()) != null) {
+                    messageConsumer.accept(messageFromGroupChat);
+                }
+            } catch (IOException e) {
+                closeEverything();
+            }
+        }).start();
     }
 
     private void updateChatArea(String message) {
         chatArea.appendText(message + "\n");
+    }
+
+    private void closeEverything() {
+        try {
+            if (bufferedReader != null) {
+                bufferedReader.close();
+            }
+            if (bufferedWriter != null) {
+                bufferedWriter.close();
+            }
+            if (socket != null) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] args) {

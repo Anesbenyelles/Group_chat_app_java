@@ -2,6 +2,7 @@ package groupchat;
 
 import java.io.*;
 import java.net.Socket;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.stage.FileChooser;
@@ -12,14 +13,16 @@ public class ClientHandler implements Runnable {
     private final BufferedReader bufferedReader;
     private final BufferedWriter bufferedWriter;
     private final String username;
-
+    private DatabaseConnection connection;
     public ClientHandler(Socket socket) throws IOException {
         this.socket = socket;
+    
         this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
         this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.username = bufferedReader.readLine();
         clientHandlers.add(this);
         broadcastMessage("SERVER: " + username + " has joined the chat!");
+         connection.entrelog( username);
     }
 
     @Override
@@ -56,6 +59,7 @@ public class ClientHandler implements Runnable {
     public void removeClientHandler() {
         clientHandlers.remove(this);
         broadcastMessage("SERVER: " + username + " has left the chat.");
+        connection.exitelog( username);
     }
 
     private void sendFile(File file) {
